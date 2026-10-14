@@ -28,6 +28,7 @@
   },
   "types": "./dist/index.d.ts",
   "files": [
+    "src/",
     "dist/",
     "resources/",
     "examples/",
@@ -37,7 +38,7 @@
   ],
   "pi": {
     "extensions": [
-      "./dist/index.js"
+      "./src/index.ts"
     ]
   },
   "peerDependencies": {

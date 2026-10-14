@@ -23,6 +23,8 @@ When you swap roles, the session's **system prompt, model, thinking level, and a
 
 ```bash
 pi install npm:pi-roles
+# or from git
+pi install git:github.com/lojacobs/pi-roles
 ```
 
 Then restart pi. The extension is auto-discovered; the `--role` flag and `/role` command become available.
