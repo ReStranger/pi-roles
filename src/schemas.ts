@@ -63,7 +63,7 @@ export type IntercomMode = Static<typeof IntercomModeSchema>;
 /**
  * Discovery scope for role files.
  *
- * - user:    only ~/.pi/agent/roles/
+ * - user:    only <agent-dir>/roles/ (defaults to ~/.pi/agent/roles/, respects PI_CODING_AGENT_DIR)
  * - project: only <repo>/.pi/roles/
  * - both:    both, with project taking priority on name collision (and
  *            built-in resources at lowest priority always).

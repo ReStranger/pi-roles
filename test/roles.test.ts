@@ -11,13 +11,14 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RoleResolutionError,
   discoverRoles,
   normalizeTools,
   parseRoleSource,
   resolveRole,
+  userRolesDir,
 } from "../src/roles.ts";
 import type { RawRole } from "../src/schemas.ts";
 
@@ -34,6 +35,7 @@ function makeTmp(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   // Vitest will clean up tmp eventually; we don't bother rming because OSes
   // garbage-collect /tmp.
   tmpDirs.length = 0;
@@ -285,5 +287,25 @@ describe("discoverRoles", () => {
 
     const result = discoverRoles(cwd, "user");
     expect(result.roles.some((r) => r.frontmatter.name === "projonly")).toBe(false);
+  });
+
+  it("discovers user roles from PI_CODING_AGENT_DIR when configured", () => {
+    const fakeAgentDir = makeTmp();
+    vi.stubEnv("PI_CODING_AGENT_DIR", fakeAgentDir);
+    expect(userRolesDir()).toBe(join(fakeAgentDir, "roles"));
+
+    const userRoles = join(fakeAgentDir, "roles");
+    mkdirSync(userRoles, { recursive: true });
+    writeFileSync(
+      join(userRoles, "custom-agent-role.md"),
+      fm({ name: "custom-agent-role", description: "from custom agent dir" }),
+    );
+
+    const cwd = makeTmp();
+    const result = discoverRoles(cwd, "user");
+    const found = result.roles.find((r) => r.frontmatter.name === "custom-agent-role");
+    expect(found).toBeDefined();
+    expect(found?.source).toBe("user");
+    expect(found?.frontmatter.description).toBe("from custom agent dir");
   });
 });

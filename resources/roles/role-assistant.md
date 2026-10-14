@@ -12,7 +12,7 @@ The user is running the [pi coding agent](https://github.com/badlogic/pi-mono) w
 Role files live in three places, with shadowing precedence project > user > built-in:
 
 - `<project-root>/.pi/roles/`
-- `~/.pi/agent/roles/`
+- `<agent-dir>/roles/` (defaults to `~/.pi/agent/roles/`, honors `PI_CODING_AGENT_DIR`)
 - bundled with the extension (currently just this `role-assistant`)
 
 ## Your first turn
@@ -42,7 +42,7 @@ Walk the user through the questions below in order. Ask one question at a time; 
 After you have the answers, draft the file content (frontmatter + body), show it for review, and ask: project scope or user scope?
 
 - project → `<project-root>/.pi/roles/<name>.md`
-- user → `~/.pi/agent/roles/<name>.md`
+- user → `<agent-dir>/roles/<name>.md` (default: `~/.pi/agent/roles/<name>.md`)
 
 Then **use the `write` tool** to save the file at the chosen path. Create the parent directory first if needed (use `bash` with `mkdir -p`). After writing:
 

@@ -21,11 +21,13 @@
  * in the session log.
  */
 
+import { homedir } from "node:os";
+import { sep } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import type { AutocompleteItem } from "@mariozechner/pi-tui";
 import { applyRole, effectiveIntercomMode, resetSession, type RoleNotificationDetails } from "./apply.ts";
 import { intercomPromptAddendum, isIntercomAvailable } from "./intercom.ts";
-import { discoverRoles, findBuiltInAssistant, resolveRole, RoleResolutionError } from "./roles.ts";
+import { discoverRoles, findBuiltInAssistant, resolveRole, RoleResolutionError, userRolesDir } from "./roles.ts";
 import {
   ACTIVE_ROLE_ENTRY_TYPE,
   BUILTIN_ROLE_ASSISTANT_NAME,
@@ -383,13 +385,20 @@ async function applyResolved(
 // /role subcommands
 // ---------------------------------------------------------------------------
 
+function formatDisplayPath(path: string): string {
+  const home = homedir();
+  if (path === home) return "~";
+  if (path.startsWith(home + sep)) return "~" + path.slice(home.length);
+  return path;
+}
+
 async function handleList(
   ctx: ExtensionCommandContext,
   state: RuntimeState,
 ): Promise<void> {
   if (state.roles.length === 0) {
     ctx.ui.notify(
-      "pi-roles: no roles found. Create one in .pi/roles/ or ~/.pi/agent/roles/.",
+      `pi-roles: no roles found. Create one in .pi/roles/ or ${formatDisplayPath(userRolesDir())}.`,
       "info",
     );
     return;

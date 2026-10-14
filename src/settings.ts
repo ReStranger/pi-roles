@@ -4,7 +4,8 @@
  * Pi's own `SettingsManager` isn't exposed on `ExtensionContext`, so we read
  * the JSON files ourselves. Locations mirror Pi's convention:
  *   - project: `<cwd-or-ancestor>/.pi/settings.json`
- *   - user:    `~/.pi/agent/settings.json`
+ *   - user:    `<agent-dir>/settings.json` (defaults to `~/.pi/agent/settings.json`,
+ *              honors `PI_CODING_AGENT_DIR`)
  *
  * Project wins on field-level merge — same precedence Pi applies to its own
  * settings. Unknown fields and parse errors are tolerated; we only care about
@@ -13,8 +14,8 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { getAgentDir } from "@mariozechner/pi-coding-agent";
 import { Value } from "typebox/value";
 import { PiRolesSettingsSchema, type PiRolesSettings } from "./schemas.ts";
 import { debugLog } from "./debug.ts";
@@ -32,8 +33,8 @@ function findProjectSettingsFile(start: string): string | null {
   }
 }
 
-function userSettingsFile(): string {
-  return join(homedir(), ".pi", "agent", "settings.json");
+export function userSettingsFile(): string {
+  return join(getAgentDir(), "settings.json");
 }
 
 function readNamespace(path: string | null): Partial<PiRolesSettings> {

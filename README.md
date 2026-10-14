@@ -136,7 +136,7 @@ Roles are looked up in this order, **first match wins** for any given name:
 | Scope | Path | Marker in `/role list` |
 |---|---|---|
 | project | `<repo>/.pi/roles/<name>.md` (or any ancestor) | `[project]` |
-| user | `~/.pi/agent/roles/<name>.md` | `[user]` |
+| user | `<agent-dir>/roles/<name>.md` (default: `~/.pi/agent/roles/<name>.md`, honors `PI_CODING_AGENT_DIR`) | `[user]` |
 | built-in | bundled with the package | `[built-in]` |
 
 When a project-scope role shadows a user-scope role of the same name, the user-scope entry is listed under a separate "Shadowed" heading in `/role list` output so you know it exists but won't load.
@@ -144,7 +144,7 @@ When a project-scope role shadows a user-scope role of the same name, the user-s
 The default `roleScope` is `both` (project + user + built-in). Override via settings:
 
 ```json
-// ~/.pi/agent/settings.json
+// ~/.pi/agent/settings.json (or <agent-dir>/settings.json)
 {
   "pi-roles": {
     "roleScope": "both",        // "user" | "project" | "both"
@@ -267,7 +267,7 @@ If you have Pi's [auto-reload](https://github.com/badlogic/pi-mono/blob/main/pac
 ## Settings reference
 
 ```json
-// ~/.pi/agent/settings.json (global) or .pi/settings.json (project)
+// ~/.pi/agent/settings.json (global, honors PI_CODING_AGENT_DIR) or .pi/settings.json (project)
 {
   "pi-roles": {
     "roleScope": "both",
@@ -318,7 +318,7 @@ These are decided, not configurable, so the extension behaves predictably:
 
 ## Layout on disk
 
-After install, your roles live wherever you like — typical setup:
+After install, your roles live wherever you like — typical setup (user roles default to `~/.pi/agent/roles/`, or `<PI_CODING_AGENT_DIR>/roles/` when configured):
 
 ```
 ~/.pi/agent/roles/
