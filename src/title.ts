@@ -198,10 +198,70 @@ export interface TitleArgs {
   /** From `settings.titleModel`. */
   configuredTitleModel: string | undefined;
   /**
-   * Test seam. Defaults to `complete` from `@mariozechner/pi-ai`. Tests pass
-   * a fake to avoid hitting a real model; production callers leave it unset.
+   * Test seam. Defaults to `completeThroughRegistry` — a nested call routed
+   * through `ctx.modelRegistry`, which resolves request-time credentials the
+   * same way Pi's own turns do. Tests pass a fake to avoid hitting a real
+   * model; production callers leave it unset.
    */
   completeFn?: (model: Model<any>, context: Context) => Promise<AssistantMessage>;
+}
+
+/**
+ * Structural view of the `ModelRegistry` surface used for nested calls. The
+ * types this package is built against (pi 0.73) predate the registry's own
+ * streaming helpers, so we probe for them instead of importing them.
+ */
+interface RequestAuthRegistry {
+  streamSimple?: (
+    model: Model<any>,
+    context: Context,
+  ) => { result(): Promise<AssistantMessage> };
+  getApiKeyAndHeaders?: (model: Model<any>) => Promise<
+    | { ok: true; apiKey?: string; headers?: Record<string, string> }
+    | { ok: false; error: string }
+  >;
+}
+
+/**
+ * Run a nested model call with the credentials Pi would use for the session
+ * model.
+ *
+ * `complete()` from `@mariozechner/pi-ai` only discovers environment-variable
+ * API keys. Everything else Pi supports — keys in `auth.json`, OAuth
+ * subscriptions, custom providers that implement their own `streamSimple`,
+ * and providers that need no key at all (llama.cpp) — is resolved at request
+ * time by the session's `ModelRegistry`. Calling pi-ai's `complete()`
+ * directly therefore fails with "No API key for provider: …" for all of
+ * those, so route through the registry instead.
+ *
+ * Current Pi exposes `streamSimple()` on the registry; older versions only
+ * expose `getApiKeyAndHeaders()`, which covers env/`auth.json` keys.
+ */
+async function completeThroughRegistry(
+  registry: ExtensionContext["modelRegistry"],
+  model: Model<any>,
+  context: Context,
+): Promise<AssistantMessage> {
+  // SAFETY: `ModelRegistry` gained `streamSimple` after the 0.73 types this
+  // package compiles against; the runtime registry (pi 1.x) provides it. We
+  // only call a member after probing for it, and the fallbacks use members
+  // both versions declare.
+  const auth = registry as unknown as RequestAuthRegistry;
+
+  if (typeof auth.streamSimple === "function") {
+    return auth.streamSimple(model, context).result();
+  }
+
+  if (typeof auth.getApiKeyAndHeaders === "function") {
+    const resolved = await auth.getApiKeyAndHeaders(model);
+    if (!resolved.ok) throw new Error(resolved.error);
+    return complete(model, context, {
+      apiKey: resolved.apiKey,
+      headers: resolved.headers,
+    });
+  }
+
+  return complete(model, context);
 }
 
 /**
@@ -226,7 +286,9 @@ export interface TitleArgs {
  */
 export async function generateAndApplyTitle(args: TitleArgs): Promise<void> {
   const { prompt, state, pi, ctx, configuredTitleModel } = args;
-  const completeFn = args.completeFn ?? complete;
+  const completeFn =
+    args.completeFn ??
+    ((model, context) => completeThroughRegistry(ctx.modelRegistry, model, context));
 
   debugLog("title", "generateAndApplyTitle entered", {
     hasIntent: !!state.intent,

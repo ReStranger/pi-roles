@@ -540,4 +540,35 @@ describe("generateAndApplyTitle", () => {
     expect(completeFn).toHaveBeenCalledTimes(1);
     expect(completeFn.mock.calls[0]![0]).toBe(titleModel);
   });
+
+  it("default completion routes through the registry (request-time auth)", async () => {
+    const state = makeState();
+    const { pi, setSessionName } = makePi();
+    const message = makeAssistantMessage("Fix local model titles");
+    const streamSimple = vi.fn((_model: Model<any>, _context: Context) => ({
+      result: async () => message,
+    }));
+    const currentModel = { provider: "llama.cpp", id: "local-model" } as unknown as Model<any>;
+    const ctx = {
+      modelRegistry: {
+        find: vi.fn(() => undefined),
+        getAll: vi.fn(() => []),
+        streamSimple,
+      },
+      model: currentModel,
+    } as unknown as ExtensionContext;
+
+    await generateAndApplyTitle({
+      prompt: "titles are broken when I use my local model",
+      state,
+      pi,
+      ctx,
+      configuredTitleModel: undefined,
+    });
+
+    expect(streamSimple).toHaveBeenCalledTimes(1);
+    expect(streamSimple.mock.calls[0]![0]).toBe(currentModel);
+    expect(state.intent).toBe("Fix local model titles");
+    expect(setSessionName).toHaveBeenCalledWith("Fix local model titles - architect");
+  });
 });

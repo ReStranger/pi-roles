@@ -146,6 +146,7 @@ Session name becomes `<intent> - <role>`.
 |---|---|
 | **Trigger** | `before_agent_start` when `state.intent` is empty AND a prompt is present |
 | **Model selection** | `settings.titleModel` > `ctx.model` (session's current model). Fails silently if neither is available. |
+| **Request auth** | Nested calls go through `ctx.modelRegistry.streamSimple()`, so `auth.json` keys, OAuth subscriptions, custom providers, and no-key providers (llama.cpp) resolve exactly as they do for Pi's own turns. Older Pi versions fall back to `getApiKeyAndHeaders()` + `complete()`. |
 | **System prompt** | Hardcoded directive — noun phrases, 5–10 words, no quotes, no prefixes |
 | **Output sanitization** | `extractTitle()` strips quotes, terminal punctuation, newlines; truncates to 10 words |
 | **Concurrency** | `titleInFlight` flag prevents duplicate calls |

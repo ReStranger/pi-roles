@@ -286,7 +286,7 @@ If you have Pi's [auto-reload](https://github.com/badlogic/pi-mono/blob/main/pac
 | `roleScope` | `"both"` | Discovery scope. `"user"`, `"project"`, or `"both"`. |
 | `defaultRole` | `"role-assistant"` | Role applied at session start when no `--role` or `PI_ROLE`. |
 | `intercomMode` | `"off"` | Default intercom behavior for roles that don't set it explicitly. |
-| `titleModel` | `null` (auto) | Model used for session-intent summarization. Falls back to a small built-in or session's current model. |
+| `titleModel` | `null` (auto) | Model used for session-intent summarization. Falls back to the session's current model. Credentials are resolved through Pi's model registry, so `auth.json`, OAuth, custom, and keyless providers all work. |
 | `warnOnMissingMcp` | `true` | Whether to surface a warning when a role's `mcp:*` entry can't be resolved. |
 
 Project settings beat global settings, per Pi's standard precedence.
