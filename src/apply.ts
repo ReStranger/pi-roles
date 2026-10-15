@@ -27,7 +27,6 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import {
   ACTIVE_ROLE_ENTRY_TYPE,
-  INTENT_PLACEHOLDER,
   ROLE_NOTIFICATION_MESSAGE_TYPE,
   STATUS_KEY,
   type ActiveRoleState,
@@ -57,12 +56,6 @@ export interface ApplyContext {
 export interface ApplyOptions {
   /** Suppress the "Switched to role X" sendMessage notification. */
   silent?: boolean;
-  /**
-   * If we're applying mid-session (vs. on `session_start`), pass the prior
-   * intent so the session-name prefix can be swapped while the trailing
-   * intent is preserved. Phase 5 supplies this from persisted state.
-   */
-  preservedIntent?: string;
 }
 
 export interface ApplyResult {
@@ -200,22 +193,17 @@ export function filterToolsForRuntime(
 }
 
 /**
- * Compose the session name in `<intent> - <role>` format. Uses INTENT_PLACEHOLDER
- * when intent is empty/undefined so the name stays readable (e.g.
- * `"<intent> - architect"`) rather than just `"- architect"`.
+ * Compose the session name from the role name.
  */
-export function composeSessionName(intent: string | undefined, roleName: string): string {
-  const trimmed = (intent ?? "").trim();
-  const intentPart = trimmed.length > 0 ? trimmed : INTENT_PLACEHOLDER;
-  return `${intentPart} - ${roleName}`;
+export function composeSessionName(roleName: string): string {
+  return roleName;
 }
 
 /**
- * Compose the footer status string shown in the status bar. Shows the role
- * name prefixed with "role:".
+ * Compose the footer status string shown in the status bar.
  */
-export function composeFooterStatus(roleName: string, intent: string | undefined): string {
-  return composeSessionName(intent, roleName);
+export function composeFooterStatus(roleName: string): string {
+  return roleName;
 }
 
 // ---------------------------------------------------------------------------
@@ -237,9 +225,7 @@ export function composeFooterStatus(roleName: string, intent: string | undefined
  *      `setActiveTools`. We always overwrite; the `inherit` case skips
  *      this step entirely.
  *   4. Footer — `setStatus` so the role name shows in the status bar.
- *   5. Session name — `setSessionName` with the composed "role — intent"
- *      string. If we have a `preservedIntent` we use it, otherwise the
- *      first user message will trigger Phase 5's title generator.
+ *   5. Session name — `setSessionName` with the role name.
  *   6. Persist — `appendEntry` so `/reload` and `session_start` with
  *      reason="reload"|"resume" can restore the active role.
  *   7. Notify — `sendMessage` with the role-notification customType
@@ -309,18 +295,17 @@ export async function applyRole(
 
   // 4. Footer status
   if (ctx.hasUI) {
-    ctx.ui.setStatus(STATUS_KEY, composeFooterStatus(role.name, options.preservedIntent));
+    ctx.ui.setStatus(STATUS_KEY, composeFooterStatus(role.name));
   }
 
   // 5. Session name
-  pi.setSessionName(composeSessionName(options.preservedIntent, role.name));
+  pi.setSessionName(composeSessionName(role.name));
 
   // 6. Persist
   const state: ActiveRoleState = {
     name: role.name,
     source: role.source,
     path: role.path,
-    intent: options.preservedIntent,
     appliedAt: Date.now(),
   };
   pi.appendEntry(ACTIVE_ROLE_ENTRY_TYPE, state);

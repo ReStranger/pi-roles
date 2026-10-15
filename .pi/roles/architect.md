@@ -111,20 +111,19 @@ For every source/test/config file the proposal modifies, paste the **current cod
 ```markdown
 ### src/apply.ts:composeSessionName (L205-208)
 ```ts
-export function composeSessionName(roleName: string, intent: string | undefined): string {
-  const trimmed = (intent ?? "").trim();
-  return trimmed.length > 0 ? `${roleName} — ${trimmed}` : roleName;
+export function composeSessionName(roleName: string): string {
+  return roleName;
 }
 ```
-→ Change to: intent-first, hyphen separator, INTENT_PLACEHOLDER sentinel.
+→ Change to: return roleName directly.
 
 ### src/apply.ts:footer setStatus (L297-299)
 ```ts
 if (ctx.hasUI) {
-  ctx.ui.setStatus(STATUS_KEY, role.name);
+  ctx.ui.setStatus(STATUS_KEY, composeFooterStatus(role.name));
 }
 ```
-→ Change to: `composeFooterStatus(role.name, options.preservedIntent)`
+→ Change to: `composeFooterStatus(role.name)`
 ```
 
 Each snippet shows: file path, symbol or region, line numbers, the current code, and a one-line "→ Change to" description of what the coder should produce. The Planner copies these into task bodies so a coder sub-agent never has to read the full file.
@@ -150,19 +149,15 @@ Three changes bundled for v0.2.0: (1) flip session-identity format to intent-fir
 
 ### src/apply.ts:composeSessionName (L205-208)
 [exact current code]
-→ Change to: intent-first, hyphen separator, INTENT_PLACEHOLDER sentinel.
+→ Change to: return roleName directly.
 
 ### src/apply.ts:footer setStatus (L297-299)
 [exact current code]
-→ Change to: composeFooterStatus(role.name, options.preservedIntent)
-
-### src/title.ts:generateAndApplyTitle success path (L244-255)
-[exact current code]
-→ Change to: add ctx.ui.setStatus(STATUS_KEY, composeFooterStatus(...)) after pi.setSessionName, guarded by ctx.hasUI.
+→ Change to: composeFooterStatus(role.name)
 
 ### test/apply.test.ts:composeSessionName suite (L272-280)
 [exact current code]
-→ Change to: expect intent-first format with INTENT_PLACEHOLDER.
+→ Change to: expect roleName return.
 
 ## Unchanged files (coder should NOT read)
 - src/index.ts — reads session name at runtime, no code change

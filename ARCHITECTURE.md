@@ -25,22 +25,22 @@ which roles exist. Roles are user content, not extension code.
                     ┌──────────────┴──────────────┐
                     │        src/index.ts         │  entry point, orchestrates lifecycle
                     │   (RuntimeState + wiring)   │
-                    └───┬──────┬──────┬──────┬────┘
-                        │      │      │      │
-              ┌─────────▼┐ ┌──▼──┐ ┌─▼────┐┌▼─────────┐
-              │ roles.ts │ │apply│ │title ││intercom  │
-              │(discovery│ │ .ts │ │ .ts  ││  .ts     │
-              │ + parse) │ │     │ │      ││          │
-              └─────┬────┘ └──┬──┘ └──┬───┘└────┬─────┘
-                    │         │       │         │
-              ┌─────▼──┐ ┌───▼───┐ ┌─▼────┐    │
-              │schemas │ │settings│ │role- │    │
-              │  .ts   │ │  .ts   │ │assist│    │
-              │(TypeBox│ │(JSON   │ │ant.ts│    │
-              │ source │ │loader) │ │      │    │
-              │of truth│ └───────┘ └──────┘    │
-              └────────┘                       │
-                                   ┌───────────▼──────────┐
+                    └───┬──────┬─────────────┬────┘
+                        │      │             │
+              ┌─────────▼┐ ┌──▼──┐       ┌───▼────────┐
+              │ roles.ts │ │apply│       │intercom    │
+              │(discovery│ │ .ts │       │  .ts       │
+              │ + parse) │ │     │       │            │
+              └─────┬────┘ └──┬──┘       └────┬───────┘
+                    │         │               │
+              ┌─────▼──┐ ┌───▼───┐            │
+              │schemas │ │settings│           │
+              │  .ts   │ │  .ts   │           │
+              │(TypeBox│ │(JSON   │           │
+              │ source │ │loader) │           │
+              │of truth│ └───────┘            │
+              └────────┘                      │
+                                   ┌──────────▼───────────┐
                                    │   Peer extensions    │
                                    │  pi-intercom         │
                                    │  pi-mcp-adapter      │
@@ -108,7 +108,7 @@ is fully owned by `roles.ts`; this module only mutates session state.
 | **Model resolution** — parse `provider/id`, scan registry, handle bare-id ambiguity | `parseModelId(raw)`, `findModelInRegistry(registry, raw)` |
 | **Intercom mode** — per-role > global default > `"off"` | `effectiveIntercomMode(role, globalDefault)` |
 | **Tool filtering** — resolve `mcp:*` entries against runtime toolset, add `intercom` when mode ≠ off | `filterToolsForRuntime(directive, ...)` |
-| **Session name** — compose `<intent> - <role>` (with `"Intent not defined"` placeholder when intent is empty) | `composeSessionName(roleName, intent)` |
+| **Session name** — compose role name | `composeSessionName(roleName)` |
 | **Full apply** — model → thinking → tools → footer → session name → persist → notify | `applyRole(role, ctx, options)` |
 | **Reset** — wrap `ctx.newSession()` (the `/role <name> --reset` primitive) | `resetSession(ctx)` |
 
@@ -126,9 +126,9 @@ The Pi extension entry point (`export default function(pi: ExtensionAPI)`). Owns
 
 | Concern | Implementation |
 |---|---|
-| **Module-scoped `RuntimeState`** | `activeRole`, `pendingRoleAfterReset`, `roles[]`, `shadowed[]`, `settings`, `intent`, `titleInFlight` |
+| **Module-scoped `RuntimeState`** | `activeRole`, `pendingRoleAfterReset`, `roles[]`, `shadowed[]`, `settings` |
 | **`session_start` handler** | Restore from `appendEntry` (reload/resume) or resolve from precedence chain (pendingReset > `--role` > `PI_ROLE` > `defaultRole` > built-in). Calls `applyResolved`. |
-| **`before_agent_start` handler** | Returns `{ systemPrompt: role.body + intercom addendum }`. **Full replacement** — ignores Pi's default coding-assistant framing. Triggers fire-and-forget title generation on first user prompt. |
+| **`before_agent_start` handler** | Returns `{ systemPrompt: role.body + intercom addendum }`. **Full replacement** — ignores Pi's default coding-assistant framing. |
 | **`/role` command** | Dispatches `list`, `current`, `reload`, or `<name> [--reset]`. Tab-completes role names against discovery. |
 | **`--role` flag** | Registered as a Pi flag; read in `pickInitialRoleName`. |
 | **Message renderer** | Registered for `pi-roles:notification` custom type so `Switched to role X` surfaces cleanly. |
@@ -136,22 +136,6 @@ The Pi extension entry point (`export default function(pi: ExtensionAPI)`). Owns
 **`--reset` ordering constraint:** `pendingRoleAfterReset` is set *before* `ctx.newSession()`
 because `newSession` synchronously fires `session_start` (reason `"new"`) before resolving.
 The handler reads and clears the pointer; on cancellation, it's restored to `null`.
-
-### `src/title.ts` — Session-name intent generation
-
-Fire-and-forget summarization of the first user message into a ≤10-word intent string.
-Session name becomes `<intent> - <role>`.
-
-| Concern | Detail |
-|---|---|
-| **Trigger** | `before_agent_start` when `state.intent` is empty AND a prompt is present |
-| **Model selection** | `settings.titleModel` > `ctx.model` (session's current model). Fails silently if neither is available. |
-| **Request auth** | Nested calls go through `ctx.modelRegistry.streamSimple()`, so `auth.json` keys, OAuth subscriptions, custom providers, and no-key providers (llama.cpp) resolve exactly as they do for Pi's own turns. Older Pi versions fall back to `getApiKeyAndHeaders()` + `complete()`. |
-| **System prompt** | Hardcoded directive — noun phrases, 5–10 words, no quotes, no prefixes |
-| **Output sanitization** | `extractTitle()` strips quotes, terminal punctuation, newlines; truncates to 10 words |
-| **Concurrency** | `titleInFlight` flag prevents duplicate calls |
-| **Race tolerance** | Re-checks `state.intent` and `state.activeRole` after await; drops stale results |
-| **Side effects on success** | Sets `state.intent`, calls `pi.setSessionName`, calls `ctx.ui.setStatus` (footer refresh), calls `pi.appendEntry` for persistence across `/reload` |
 
 ### `src/settings.ts` — Settings loader
 
@@ -213,8 +197,8 @@ session_start (reason="startup")
               ├─ pi.setModel(...)
               ├─ pi.setThinkingLevel(...)
               ├─ pi.setActiveTools(...)
-              ├─ ctx.ui.setStatus(STATUS_KEY, "Intent not defined - architect")
-              ├─ pi.setSessionName("Intent not defined - architect")
+              ├─ ctx.ui.setStatus(STATUS_KEY, "architect")
+              ├─ pi.setSessionName("architect")
               ├─ pi.appendEntry(ACTIVE_ROLE_ENTRY_TYPE, state)
               └─ pi.sendMessage(notification)
 ```
@@ -223,11 +207,6 @@ session_start (reason="startup")
 
 ```
 before_agent_start fires
-  │
-  ├─► If !state.intent && first user prompt:
-  │     void generateAndApplyTitle(...)    [fire-and-forget]
-  │       └─ on success: pi.setSessionName("Design auth schema - architect")
-  │                      ctx.ui.setStatus(STATUS_KEY, "Design auth schema - architect")
   │
   └─► composeSystemPrompt(state, pi)
         │
@@ -244,13 +223,12 @@ before_agent_start fires
   │
   ├─► refreshFromDisk(ctx.cwd)        [always re-reads from disk]
   │
-  └─► applyResolved(pi, ctx, state, "planner", { preservedIntent })
+  └─► applyResolved(pi, ctx, state, "planner", { silent: false })
         │  └─ same applyRole flow as session start, but:
         │      - silent=false (show notification)
-        │      - preservedIntent carries over the existing intent string
-        │      - pi.setSessionName("Design auth schema - planner")
+        │      - pi.setSessionName("planner")
         │
-        └─ state.activeRole updated, state.intent preserved
+        └─ state.activeRole updated
 ```
 
 ### /role <name> --reset
@@ -267,7 +245,6 @@ before_agent_start fires
   │           └─► synchronously fires session_start (reason="new")
   │                 │
   │                 ├─ reads pendingRoleAfterReset → "planner"
-  │                 ├─ clears state.intent (fresh session)
   │                 └─ applyResolved("planner", ...)
   │
   └─► if cancelled: state.pendingRoleAfterReset = null
@@ -281,9 +258,9 @@ session_start (reason="reload" | "resume")
   ├─► findRestoredState(ctx)
   │     └─ walk ctx.sessionManager.getEntries() right-to-left
   │         for most recent customType === "pi-roles:active-role"
-  │         → ActiveRoleState { name, source, path, intent }
+  │         → ActiveRoleState { name, source, path }
   │
-  └─► applyResolved(name, { silent: true, preservedIntent })
+  └─► applyResolved(name, { silent: true })
         └─ re-resolves the extends chain fresh from disk
            (parent roles may have been edited in the meantime)
 ```
@@ -296,7 +273,7 @@ session_start (reason="reload" | "resume")
 |---|---|---|
 | `@mariozechner/pi-coding-agent` | `*` (peer) | Extension host — `ExtensionAPI`, `ExtensionContext`, events, commands, flags |
 | `@mariozechner/pi-agent-core` | `*` (peer) | Session management (`getEntries`, `newSession`) |
-| `@mariozechner/pi-ai` | `*` (peer) | `complete()` for title generation |
+| `@mariozechner/pi-ai` | `*` (peer) | Model types (`Model`, `ThinkingLevel`) |
 | `@mariozechner/pi-tui` | `*` (optional peer) | `AutocompleteItem` type for tab completions |
 | `typebox` | `^1.0.0` (peer) | Schema validation — the `typebox` root package (1.x), NOT `@sinclair/typebox` |
 | `yaml` | `^2.5.0` (direct) | YAML frontmatter parsing |
@@ -395,10 +372,8 @@ schema, because JSON Schema can't distinguish `undefined` from "not validated"):
 |---|---|
 | **Model resolution fails silently** — user's `model:` field points to a model they don't have an API key for | Warn in notification; keep current model. Visible in `/role current` output. |
 | **`mcp:*` entries silently dropped** when `pi-mcp-adapter` isn't installed | `warnOnMissingMcp` defaults to `true`; one warning per dropped entry |
-| **Title generation latency** — hitting a model for intent summarization adds cost | Fire-and-forget; the agent loop starts immediately. Title model is typically a cheap model (`gpt-4o-mini`). |
-| **Stale intent after `--reset` race** — title generation in flight when reset happens | Re-check `state.intent` and `state.activeRole` after await; drop stale result. Worst case is one cosmetic glitch for one prompt. |
 | **`--reset` + `newSession` ordering** — `pendingRoleAfterReset` must be set before `newSession` because `session_start` fires synchronously | Enforced in the command handler; cancellation path restores `null`. |
-| **Extension memory wiped on `/reload`** — all module-scoped state is lost | `pi.appendEntry` persistence + `session_start` restore from session log. Intent and active role survive `/reload`. |
+| **Extension memory wiped on `/reload`** — all module-scoped state is lost | `pi.appendEntry` persistence + `session_start` restore from session log. Active role survives `/reload`. |
 | **No runtime cache invalidation** for role files — if a parent role is edited while a child is active, the child's in-memory resolved state is stale | `/role reload` or `/role <same-name>` re-reads the full chain from disk. Users iterating on roles are expected to use these. |
 | **Pi API surface instability** — the extension depends on Pi internal APIs that may change between versions | Version pin in `package.json` `engines`; the BUILD-STATUS.md documents the verified API surface against pi-mono as of April 2026. |
 
@@ -411,12 +386,11 @@ pi-roles/
     schemas.ts          TypeBox schemas, TS interfaces, constants
     roles.ts            Discovery, parsing, extends resolution
     apply.ts            Side-effecting application to Pi session
-    title.ts            Session-name intent generation
     intercom.ts         pi-intercom integration helpers
     settings.ts         settings.json loader
     role-assistant.ts   Built-in role-assistant path resolver
   test/
-    *.test.ts           Vitest test suites (125 tests)
+    *.test.ts           Vitest test suites (96 tests)
   resources/
     roles/
       role-assistant.md  The one built-in role

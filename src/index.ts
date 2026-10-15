@@ -38,7 +38,6 @@ import {
   type ResolvedRole,
 } from "./schemas.ts";
 import { loadSettings } from "./settings.ts";
-import { generateAndApplyTitle } from "./title.ts";
 import { debugLog } from "./debug.ts";
 
 const FLAG_NAME = "role";
@@ -56,21 +55,6 @@ interface RuntimeState {
   shadowed: { name: string; source: string; path: string }[];
   /** Cached settings for the current cwd; refreshed on session_start. */
   settings: PiRolesSettings;
-  /** Carried across role swaps so the session-name intent survives a role change. */
-  intent: string | undefined;
-  /**
-   * True while a title-generation request is in flight. Prevents
-   * `before_agent_start` from spawning a second concurrent summarization
-   * if it fires again before the first resolves. Reset to false in
-   * `generateAndApplyTitle`'s finally block.
-   */
-  titleInFlight: boolean;
-  /**
-   * True after we've shown the one-time title-generation error hint.
-   * Prevents spamming the user on every prompt when the title model
-   * is misconfigured or lacks credentials.
-   */
-  titleErrorShown: boolean;
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -80,9 +64,6 @@ export default function (pi: ExtensionAPI): void {
     roles: [],
     shadowed: [],
     settings: {},
-    intent: undefined,
-    titleInFlight: false,
-    titleErrorShown: false,
   };
 
   /** Re-read settings + re-discover roles from disk. Centralized so every */
@@ -119,23 +100,20 @@ export default function (pi: ExtensionAPI): void {
     refreshFromDisk(ctx.cwd);
 
     const restored = findRestoredState(ctx);
-    debugLog("index", `session_start reason=${event.reason}`, restored ? { name: restored.name, intent: restored.intent } : undefined);
+    debugLog("index", `session_start reason=${event.reason}`, restored ? { name: restored.name } : undefined);
 
     // Restore precedence:
     //   - On reload/resume, prefer the persisted active-role entry.
     //   - On startup/new/fork, resolve fresh from the chain (the persisted
     //     entry from a previous session is irrelevant here).
     let targetName: string | undefined;
-    let preservedIntent: string | undefined;
     let silent = false;
 
     if (state.pendingRoleAfterReset) {
       targetName = state.pendingRoleAfterReset;
       state.pendingRoleAfterReset = null;
-      // intent is intentionally cleared on --reset (session is a fresh start).
     } else if ((event.reason === "reload" || event.reason === "resume") && restored) {
       targetName = restored.name;
-      preservedIntent = restored.intent;
       silent = true;
     } else {
       targetName = pickInitialRoleName(pi, state.settings, state.roles);
@@ -144,8 +122,7 @@ export default function (pi: ExtensionAPI): void {
       silent = event.reason === "startup";
     }
 
-    state.intent = preservedIntent;
-    await applyResolved(pi, ctx, state, targetName, { silent, preservedIntent });
+    await applyResolved(pi, ctx, state, targetName, { silent });
   });
 
   // ----------------------------------------------------------- before_agent_start
@@ -161,37 +138,7 @@ export default function (pi: ExtensionAPI): void {
   // "Replace the system prompt for this turn"; that is what we do.
   // Subsequent extensions in the chain see our value as their
   // event.systemPrompt and may compose if they choose.
-  //
-  // Side effect — title generation. When this is the first prompt of the
-  // session (no intent persisted yet), kick off an async summarization to
-  // populate the session-name "intent" half. We don't await: the agent
-  // loop should start immediately, and the session name update can race
-  // independently. `generateAndApplyTitle` handles guards (already-set,
-  // already-running, no-model) internally.
-  pi.on("before_agent_start", async (event, ctx) => {
-    debugLog("index", "before_agent_start fired", {
-      hasActiveRole: !!state.activeRole,
-      hasIntent: !!state.intent,
-      inFlight: state.titleInFlight,
-      promptLen: event?.prompt?.length ?? 0,
-      ctxModelId: (ctx as any)?.model?.id,
-    });
-    if (
-      state.activeRole &&
-      !state.intent &&
-      !state.titleInFlight &&
-      event.prompt &&
-      event.prompt.trim().length > 0
-    ) {
-      debugLog("index", "triggering title generation", { promptPreview: event.prompt.slice(0, 80), model: state.settings.titleModel });
-      void generateAndApplyTitle({
-        prompt: event.prompt,
-        state,
-        pi,
-        ctx,
-        configuredTitleModel: state.settings.titleModel,
-      });
-    }
+  pi.on("before_agent_start", async (_event, _ctx) => {
     return composeSystemPrompt(state, pi);
   });
 
@@ -235,7 +182,7 @@ export default function (pi: ExtensionAPI): void {
         return;
       }
 
-      await applyResolved(pi, ctx, state, name, { silent: false, preservedIntent: state.intent });
+      await applyResolved(pi, ctx, state, name, { silent: false });
     },
   });
 }
@@ -337,7 +284,7 @@ async function applyResolved(
   ctx: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1],
   state: RuntimeState,
   name: string,
-  options: { silent: boolean; preservedIntent: string | undefined },
+  options: { silent: boolean },
 ): Promise<void> {
   let resolved: ResolvedRole;
   try {
@@ -370,8 +317,7 @@ async function applyResolved(
   );
 
   state.activeRole = resolved;
-  state.intent = result.state.intent;
-  debugLog("index", `applied role=${resolved.name}`, { intent: result.state.intent, warnings: result.warnings });
+  debugLog("index", `applied role=${resolved.name}`, { warnings: result.warnings });
 
   if (ctx.hasUI && result.warnings.length > 0 && !options.silent) {
     // The notification message already mentions the warning count; surface
@@ -443,7 +389,6 @@ async function handleReload(
   const previous = state.activeRole?.name ?? pickInitialRoleName(pi, state.settings, state.roles);
   await applyResolved(pi, ctx, state, previous, {
     silent: false,
-    preservedIntent: state.intent,
   });
 }
 

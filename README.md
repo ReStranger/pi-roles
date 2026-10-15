@@ -151,8 +151,7 @@ The default `roleScope` is `both` (project + user + built-in). Override via sett
   "pi-roles": {
     "roleScope": "both",        // "user" | "project" | "both"
     "defaultRole": "architect", // optional; falls back to role-assistant
-    "intercomMode": "off",      // "off" | "receive" | "send" | "both"
-    "titleModel": "openai/gpt-4o-mini"
+    "intercomMode": "off"       // "off" | "receive" | "send" | "both"
   }
 }
 ```
@@ -208,7 +207,7 @@ Resolution order: `--role` > `PI_ROLE` > `defaultRole` setting > built-in `role-
 
 ## Session name and footbar
 
-Each session is named `<role-name>` (and, once the title-generation phase ships, `<role-name> — <intent>`, where `<intent>` is a short summary of your first user message). The role-name prefix updates when you `/role` to a different role.
+Each session is named `<role-name>`. The session name updates when you `/role` to a different role.
 
 The session name is set via Pi's native `pi.setSessionName()` API, so:
 
@@ -216,8 +215,6 @@ The session name is set via Pi's native `pi.setSessionName()` API, so:
 - [`pi-intercom`](https://github.com/nicobailon/pi-intercom) automatically uses it as the session target — making cross-session messaging work out of the box.
 
 The role indicator also appears in Pi's footer (via `ctx.ui.setStatus`), composing cleanly with [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer) if you have it installed. No extra dependency required.
-
-**Title generation model** (planned). The `titleModel` setting is reserved for the future intent-summarization step; it has no effect today. The current release sets the session name to the bare role name and updates the prefix on swap.
 
 ---
 
@@ -275,7 +272,6 @@ If you have Pi's [auto-reload](https://github.com/badlogic/pi-mono/blob/main/pac
     "roleScope": "both",
     "defaultRole": "role-assistant",
     "intercomMode": "off",
-    "titleModel": "openai/gpt-4o-mini",
     "warnOnMissingMcp": true
   }
 }
@@ -286,7 +282,6 @@ If you have Pi's [auto-reload](https://github.com/badlogic/pi-mono/blob/main/pac
 | `roleScope` | `"both"` | Discovery scope. `"user"`, `"project"`, or `"both"`. |
 | `defaultRole` | `"role-assistant"` | Role applied at session start when no `--role` or `PI_ROLE`. |
 | `intercomMode` | `"off"` | Default intercom behavior for roles that don't set it explicitly. |
-| `titleModel` | `null` (auto) | Model used for session-intent summarization. Falls back to the session's current model. Credentials are resolved through Pi's model registry, so `auth.json`, OAuth, custom, and keyless providers all work. |
 | `warnOnMissingMcp` | `true` | Whether to surface a warning when a role's `mcp:*` entry can't be resolved. |
 
 Project settings beat global settings, per Pi's standard precedence.
@@ -312,7 +307,6 @@ These are decided, not configurable, so the extension behaves predictably:
 - **Cycle detection in `extends`** is a hard error at load time, not a warning. A circular role is broken; refusing to load it is the only sane behavior.
 - **`/role <name>` always re-reads from disk.** No staleness between switches, ever.
 - **`--reset` is explicit.** The role-assistant prints the exact `--reset` command for you to run manually rather than auto-resetting; resetting is destructive enough to deserve a deliberate keystroke.
-- **Title generation** (planned, not yet implemented). The current release sets the session name to the bare role name; intent-summarization on first user message lands in a follow-up. `--reset` already clears the cached intent so the future implementation drops in cleanly.
 - **Built-in `role-assistant` lives at the lowest discovery priority.** Drop a same-named file in user or project scope to override it.
 - **`/role list` shows shadowed entries** with a `(shadowed)` marker — you can see what *would* load if the higher-priority file didn't exist.
 

@@ -22,10 +22,12 @@ import {
 } from "../src/apply.ts";
 import {
   ACTIVE_ROLE_ENTRY_TYPE,
+  ActiveRoleStateSchema,
   ROLE_NOTIFICATION_MESSAGE_TYPE,
   STATUS_KEY,
   type ResolvedRole,
 } from "../src/schemas.ts";
+import { Value } from "typebox/value";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -271,26 +273,14 @@ describe("filterToolsForRuntime", () => {
 });
 
 describe("composeSessionName", () => {
-  it("empty/undefined intent → INTENT_PLACEHOLDER - role", () => {
-    expect(composeSessionName(undefined, "architect")).toBe("Intent not defined - architect");
-    expect(composeSessionName("", "architect")).toBe("Intent not defined - architect");
-    expect(composeSessionName("   ", "architect")).toBe("Intent not defined - architect");
-  });
-  it("non-empty → '<intent> - <role>'", () => {
-    expect(composeSessionName("designing schema", "architect")).toBe(
-      "designing schema - architect",
-    );
+  it("returns role name", () => {
+    expect(composeSessionName("architect")).toBe("architect");
   });
 });
 
 describe("composeFooterStatus", () => {
-  it("undefined intent → INTENT_PLACEHOLDER - role", () => {
-    expect(composeFooterStatus("architect", undefined)).toBe("Intent not defined - architect");
-    expect(composeFooterStatus("architect", "")).toBe("Intent not defined - architect");
-    expect(composeFooterStatus("architect", "   ")).toBe("Intent not defined - architect");
-  });
-  it("non-empty intent → '<intent> - <role>'", () => {
-    expect(composeFooterStatus("architect", "designing schema")).toBe("designing schema - architect");
+  it("returns role name", () => {
+    expect(composeFooterStatus("architect")).toBe("architect");
   });
 });
 
@@ -316,8 +306,8 @@ describe("applyRole", () => {
     expect(fake.pi.setModel).toHaveBeenCalledTimes(1);
     expect(fake.pi.setThinkingLevel).toHaveBeenCalledWith("high");
     expect(fake.pi.setActiveTools).toHaveBeenCalledWith(["read", "write"]);
-    expect(fake.ctx.ui.setStatus).toHaveBeenCalledWith(STATUS_KEY, "Intent not defined - test");
-    expect(fake.pi.setSessionName).toHaveBeenCalledWith("Intent not defined - test");
+    expect(fake.ctx.ui.setStatus).toHaveBeenCalledWith(STATUS_KEY, "test");
+    expect(fake.pi.setSessionName).toHaveBeenCalledWith("test");
     expect(fake.pi.appendEntry).toHaveBeenCalledWith(
       ACTIVE_ROLE_ENTRY_TYPE,
       expect.objectContaining({ name: "test", source: "project" }),
@@ -388,16 +378,27 @@ describe("applyRole", () => {
     expect(fake.pi.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("preservedIntent flows into session name and persisted state", async () => {
+  it("persists active role state without intent", async () => {
     const fake = makeFake();
-    await applyRole(makeRole({ name: "architect" }), applyCtxOf(fake), {
-      preservedIntent: "wiring schemas",
-    });
-    expect(fake.pi.setSessionName).toHaveBeenCalledWith("wiring schemas - architect");
+    await applyRole(makeRole({ name: "architect" }), applyCtxOf(fake));
+    expect(fake.pi.setSessionName).toHaveBeenCalledWith("architect");
     expect(fake.pi.appendEntry).toHaveBeenCalledWith(
       ACTIVE_ROLE_ENTRY_TYPE,
-      expect.objectContaining({ intent: "wiring schemas" }),
+      expect.objectContaining({ name: "architect" }),
     );
+    const lastCall = fake.pi.appendEntry.mock.calls[0]![1];
+    expect(lastCall.intent).toBeUndefined();
+  });
+
+  it("ActiveRoleStateSchema validates legacy state with intent", () => {
+    const legacyState = {
+      name: "architect",
+      source: "project",
+      path: "/test/architect.md",
+      intent: "old intent",
+      appliedAt: Date.now(),
+    };
+    expect(Value.Check(ActiveRoleStateSchema, legacyState)).toBe(true);
   });
 
   it("hasUI=false skips setStatus", async () => {

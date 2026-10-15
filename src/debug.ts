@@ -5,8 +5,8 @@
  * Output goes to /tmp/pi-roles-debug.log with timestamps.
  *
  * This is NOT a user-facing log. It exists so developers (and users who
- * explicitly opt in) can trace why title generation, role resolution, or
- * model application fails without polluting the TUI.
+ * explicitly opt in) can trace why role resolution or model application
+ * fails without polluting the TUI.
  */
 
 import { appendFileSync } from "node:fs";

@@ -256,11 +256,7 @@ export const PiRolesSettingsSchema = Type.Object(
     /** Default intercom mode for roles that don't set `intercom:`. Default: "off". */
     intercomMode: Type.Optional(IntercomModeSchema),
 
-    /**
-     * Model used to summarize the first user message into the session-name
-     * intent. Default: a small/cheap model when one is available, falling
-     * back to the session's current model.
-     */
+    /** Legacy/ignored: previously used to configure session title generation model. */
     titleModel: Type.Optional(Type.String({ minLength: 1 })),
 
     /** Whether to surface a warning when an mcp:* tool can't be resolved. Default: true. */
@@ -285,10 +281,6 @@ export type PiRolesSettings = Static<typeof PiRolesSettingsSchema>;
  * `appliedAt` is the leaf role's source/path so we can re-resolve the chain
  * fresh on restore — the extends parents may have been edited in the
  * meantime.
- *
- * `intent` carries the session-intent summary we generated for the title, so
- * a /role swap mid-session can keep the intent and just replace the role
- * prefix in the session name without re-summarizing.
  */
 export const ActiveRoleStateSchema = Type.Object(
   {
@@ -297,7 +289,7 @@ export const ActiveRoleStateSchema = Type.Object(
     source: RoleSourceSchema,
     /** Path of the LEAF role file. */
     path: Type.String(),
-    /** Cached session-intent summary for the title. May be empty pre-first-message. */
+    /** Legacy/ignored: previously held session-intent summary. */
     intent: Type.Optional(Type.String()),
     /** Unix ms timestamp; for diagnostics only. */
     appliedAt: Type.Number(),
@@ -335,10 +327,3 @@ export const STATUS_KEY = "pi-roles" as const;
  * when no defaultRole is configured and no --role / PI_ROLE is supplied.
  */
 export const BUILTIN_ROLE_ASSISTANT_NAME = "role-assistant" as const;
-
-/**
- * Placeholder shown in the session name when intent hasn't been generated yet.
- * ComposeSessionName flips to `<intent> - <role>` format; when intent is empty,
- * this placeholder makes the session name readable instead of just "- role".
- */
-export const INTENT_PLACEHOLDER = "Intent not defined" as const;

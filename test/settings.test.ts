@@ -86,4 +86,23 @@ describe("settings loader", () => {
     const settings = loadSettings(cwd);
     expect(settings).toEqual({});
   });
+
+  it("loadSettings accepts legacy titleModel in settings", () => {
+    const fakeAgentDir = makeTmp();
+    vi.stubEnv("PI_CODING_AGENT_DIR", fakeAgentDir);
+    writeFileSync(
+      join(fakeAgentDir, "settings.json"),
+      JSON.stringify({
+        "pi-roles": {
+          defaultRole: "custom-default",
+          titleModel: "anthropic/claude-3-5-haiku",
+        },
+      }),
+    );
+
+    const cwd = makeTmp();
+    const settings = loadSettings(cwd);
+    expect(settings.defaultRole).toBe("custom-default");
+    expect(settings.titleModel).toBe("anthropic/claude-3-5-haiku");
+  });
 });
