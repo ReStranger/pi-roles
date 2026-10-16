@@ -7,17 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Changed
 
-- **Title generation now works with every provider authentication mode.**
-`src/title.ts` called `complete()` from `@mariozechner/pi-ai` directly, which
-only discovers environment-variable API keys. Keys stored in `auth.json`,
-OAuth subscriptions, custom providers (antigravity, bifrost, opencode-free),
-and providers that need no key at all (llama.cpp) are resolved at request
-time by the session's `ModelRegistry`, so the title call failed with
-`No API key for provider: …`. The nested call is now routed through
-`ctx.modelRegistry.streamSimple()`, with a `getApiKeyAndHeaders()` fallback
-for older Pi versions.
+- **Session names are no longer touched.** `applyRole` no longer calls
+`pi.setSessionName()`. Resuming a session, reloading, or swapping roles leaves
+the Pi-assigned name intact, so `/resume` listings keep identifying their own
+work instead of collapsing every role session to the role name. The active
+role is still surfaced in the footer via `ctx.ui.setStatus`.
+- **Session title generation removed.** `src/title.ts` and its tests are gone,
+along with the `titleModel` setting (still accepted for backward
+compatibility, but ignored) and the `intent` field in newly persisted
+active-role entries (legacy entries remain readable).
+
+### Removed
+
+- `pi.setSessionName()` integration and the exported `composeSessionName()`
+helper.
 
 ## [0.2.0] - 2026-05-05
 

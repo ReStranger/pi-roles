@@ -2,7 +2,7 @@
  * Phase 3 tests for src/apply.ts.
  *
  * The pure helpers (`parseModelId`, `findModelInRegistry`,
- * `effectiveIntercomMode`, `filterToolsForRuntime`, `composeSessionName`)
+ * `effectiveIntercomMode`, `filterToolsForRuntime`, `composeFooterStatus`)
  * are tested directly. `applyRole` is tested against a hand-rolled fake
  * `ExtensionAPI` + `ExtensionContext` — we only stub the methods apply.ts
  * actually calls, which keeps the surface area manageable and lets tests
@@ -13,7 +13,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyRole,
   composeFooterStatus,
-  composeSessionName,
   effectiveIntercomMode,
   filterToolsForRuntime,
   findModelInRegistry,
@@ -58,6 +57,8 @@ interface FakeApi {
     setThinkingLevel: ReturnType<typeof vi.fn>;
     setActiveTools: ReturnType<typeof vi.fn>;
     getAllTools: ReturnType<typeof vi.fn>;
+    /** Kept as a spy even though apply.ts never calls it: the "never touches
+     * the session name" test asserts it stays uncalled. */
     setSessionName: ReturnType<typeof vi.fn>;
     appendEntry: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
@@ -272,12 +273,6 @@ describe("filterToolsForRuntime", () => {
   });
 });
 
-describe("composeSessionName", () => {
-  it("returns role name", () => {
-    expect(composeSessionName("architect")).toBe("architect");
-  });
-});
-
 describe("composeFooterStatus", () => {
   it("returns role name", () => {
     expect(composeFooterStatus("architect")).toBe("architect");
@@ -289,7 +284,7 @@ describe("composeFooterStatus", () => {
 // ---------------------------------------------------------------------------
 
 describe("applyRole", () => {
-  it("happy path: applies model, thinking, tools, footer, name, persists, notifies", async () => {
+  it("happy path: applies model, thinking, tools, footer, persists, notifies", async () => {
     const fake = makeFake({
       models: [{ id: "claude-opus-4-7", provider: "anthropic", name: "Opus" }],
       tools: [{ name: "read" }, { name: "write" }],
@@ -307,7 +302,6 @@ describe("applyRole", () => {
     expect(fake.pi.setThinkingLevel).toHaveBeenCalledWith("high");
     expect(fake.pi.setActiveTools).toHaveBeenCalledWith(["read", "write"]);
     expect(fake.ctx.ui.setStatus).toHaveBeenCalledWith(STATUS_KEY, "test");
-    expect(fake.pi.setSessionName).toHaveBeenCalledWith("test");
     expect(fake.pi.appendEntry).toHaveBeenCalledWith(
       ACTIVE_ROLE_ENTRY_TYPE,
       expect.objectContaining({ name: "test", source: "project" }),
@@ -315,6 +309,12 @@ describe("applyRole", () => {
     expect(fake.pi.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ customType: ROLE_NOTIFICATION_MESSAGE_TYPE }),
     );
+  });
+
+  it("never touches the session name", async () => {
+    const fake = makeFake();
+    await applyRole(makeRole({ name: "architect" }), applyCtxOf(fake));
+    expect(fake.pi.setSessionName).not.toHaveBeenCalled();
   });
 
   it("missing model → warning, keeps current", async () => {
@@ -381,7 +381,6 @@ describe("applyRole", () => {
   it("persists active role state without intent", async () => {
     const fake = makeFake();
     await applyRole(makeRole({ name: "architect" }), applyCtxOf(fake));
-    expect(fake.pi.setSessionName).toHaveBeenCalledWith("architect");
     expect(fake.pi.appendEntry).toHaveBeenCalledWith(
       ACTIVE_ROLE_ENTRY_TYPE,
       expect.objectContaining({ name: "architect" }),

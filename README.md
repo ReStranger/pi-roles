@@ -205,16 +205,21 @@ Resolution order: `--role` > `PI_ROLE` > `defaultRole` setting > built-in `role-
 
 ---
 
-## Session name and footbar
+## Session name and footer
 
-Each session is named `<role-name>`. The session name updates when you `/role` to a different role.
+`pi-roles` does **not** rename sessions. Session names stay exactly as Pi assigned
+them, so they keep identifying their work in `/resume` listings and Pi's session
+selector — resuming a role session no longer collapses it to the role name.
+(Earlier versions set the session name to the active role; that behavior was
+removed.)
 
-The session name is set via Pi's native `pi.setSessionName()` API, so:
+The active role is surfaced in Pi's **footer** instead (via `ctx.ui.setStatus`),
+composing cleanly with [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer)
+if you have it installed. No extra dependency required.
 
-- It shows in Pi's session selector and `/resume` listings.
-- [`pi-intercom`](https://github.com/nicobailon/pi-intercom) automatically uses it as the session target — making cross-session messaging work out of the box.
-
-The role indicator also appears in Pi's footer (via `ctx.ui.setStatus`), composing cleanly with [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer) if you have it installed. No extra dependency required.
+[`pi-intercom`](https://github.com/nicobailon/pi-intercom) targeting still uses
+Pi's session name — whatever it is — so cross-session messaging keeps working;
+pi-roles just never changes the name.
 
 ---
 

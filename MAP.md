@@ -11,22 +11,23 @@ then open only the files you need.
 | `src/roles.ts` | ~3.5K | **Discovery + parse + extends.** Pure fs/parse — no Pi APIs. `discoverRoles`, `loadRoleFile`, `resolveRole`. |
 | `src/apply.ts` | ~3.3K | **Apply to live session.** Model/tools/thinking mutation. `applyRole`, `resetSession`, `filterToolsForRuntime`. |
 | `src/index.ts` | ~4.3K | **Extension entry point.** Lifecycle wiring: `session_start`, `before_agent_start`, `/role` command, `--role` flag. |
-| `src/title.ts` | ~2.6K | **Session-name intent.** Fire-and-forget summarization via `pi-ai` `complete()`. |
 | `src/intercom.ts` | ~0.7K | **pi-intercom helpers.** Detection (`isIntercomAvailable`) + prompt addendum per mode. |
 | `src/settings.ts` | ~0.6K | **settings.json loader.** Reads `"pi-roles"` namespace, project-over-user merge. |
 | `src/role-assistant.ts` | ~0.5K | **Built-in role path resolver.** Tiny wrapper around `loadRoleFile` for the bundled role-assistant. |
+| `src/debug.ts` | ~0.3K | **Opt-in debug logger.** Gated by env var; no-op otherwise. |
 
-## Tests (7 files, ~14K tok)
+## Tests (8 files, ~14K tok)
 
 | File | Tokens | Covers |
 |---|---|---|
-| `test/title.test.ts` | ~4.7K | Title extraction, model resolution, prompt composition (37 tests) |
-| `test/apply.test.ts` | ~3.3K | Model parsing, tool filtering, session naming, apply orchestration (32 tests) |
-| `test/roles.test.ts` | ~2.6K | Frontmatter parsing, tri-state tools, extends chain, discovery, shadowing (23 tests) |
-| `test/index.test.ts` | ~1.9K | Flag/env/defaultRole precedence, composeSystemPrompt, completions (12 tests) |
+| `test/apply.test.ts` | ~3.3K | Model parsing, tool filtering, footer status, apply orchestration incl. "never touches the session name" (33 tests) |
+| `test/roles.test.ts` | ~2.6K | Frontmatter parsing, tri-state tools, extends chain, discovery, shadowing (24 tests) |
+| `test/index.test.ts` | ~1.9K | Flag/env/defaultRole precedence, composeSystemPrompt, completions (18 tests) |
 | `test/examples.test.ts` | ~0.6K | Example files parse without errors (3 tests) |
+| `test/settings.test.ts` | ~0.6K | Settings namespace merge, legacy `titleModel` acceptance (5 tests) |
 | `test/role-assistant.test.ts` | ~0.5K | Built-in role loads and resolves (5 tests) |
 | `test/intercom.test.ts` | ~0.4K | Intercom detection and addendum composition (7 tests) |
+| `test/package-entry.test.ts` | ~0.2K | Package entry point resolves (1 test) |
 
 ## Resources & Examples (3 files, ~2K tok)
 

@@ -55,7 +55,7 @@ which roles exist. Roles are user content, not extension code.
 | **User → Disk** | Role `.md` files, `settings.json` — user owns these entirely |
 | **Disk → `roles.ts`** | File reads (sync), YAML parse, TypeBox validation — all trustless: malformed input is rejected with a hard error |
 | **`roles.ts` → `apply.ts`** | `ResolvedRole` objects — validated, merged, normalized |
-| **`apply.ts` → Pi runtime** | Calls to `pi.setModel`, `pi.setThinkingLevel`, `pi.setActiveTools`, `pi.setSessionName`, `pi.appendEntry` — all sandboxed within the Pi extension host |
+| **`apply.ts` → Pi runtime** | Calls to `pi.setModel`, `pi.setThinkingLevel`, `pi.setActiveTools`, `pi.appendEntry` and `ctx.ui.setStatus` — all sandboxed within the Pi extension host. `pi.setSessionName` is deliberately absent: pi-roles never renames sessions |
 | **Pi runtime → LLM** | System prompt = role body + optional intercom addendum. The model receives exactly the role definition the user authored; no extension code leaks into the prompt |
 | **`pi-intercom` (optional)** | `intercom` tool added to active set; prompt addendum injected into system prompt. pi-roles never speaks the intercom wire protocol — it only opts roles in or out |
 
@@ -108,13 +108,13 @@ is fully owned by `roles.ts`; this module only mutates session state.
 | **Model resolution** — parse `provider/id`, scan registry, handle bare-id ambiguity | `parseModelId(raw)`, `findModelInRegistry(registry, raw)` |
 | **Intercom mode** — per-role > global default > `"off"` | `effectiveIntercomMode(role, globalDefault)` |
 | **Tool filtering** — resolve `mcp:*` entries against runtime toolset, add `intercom` when mode ≠ off | `filterToolsForRuntime(directive, ...)` |
-| **Session name** — compose role name | `composeSessionName(roleName)` |
-| **Full apply** — model → thinking → tools → footer → session name → persist → notify | `applyRole(role, ctx, options)` |
+| **Footer status** — role name for the status bar | `composeFooterStatus(roleName)` |
+| **Full apply** — model → thinking → tools → footer → persist → notify | `applyRole(role, ctx, options)` |
 | **Reset** — wrap `ctx.newSession()` (the `/role <name> --reset` primitive) | `resetSession(ctx)` |
 
 **Apply order is intentional:** Model first (Pi may clamp thinking on model switch), then
-thinking, then tools. Footer, session name, and persistence are non-blocking and order
-among themselves doesn't matter.
+thinking, then tools. Footer and persistence are non-blocking and order among
+themselves doesn't matter. The session name is never touched (see trust boundaries).
 
 **System prompt is NOT set here.** Pi rebuilds the prompt per turn; the `before_agent_start`
 handler in `index.ts` returns the role body. `applyRole` stashes warnings and returns the
@@ -198,7 +198,6 @@ session_start (reason="startup")
               ├─ pi.setThinkingLevel(...)
               ├─ pi.setActiveTools(...)
               ├─ ctx.ui.setStatus(STATUS_KEY, "architect")
-              ├─ pi.setSessionName("architect")
               ├─ pi.appendEntry(ACTIVE_ROLE_ENTRY_TYPE, state)
               └─ pi.sendMessage(notification)
 ```
@@ -226,7 +225,6 @@ before_agent_start fires
   └─► applyResolved(pi, ctx, state, "planner", { silent: false })
         │  └─ same applyRole flow as session start, but:
         │      - silent=false (show notification)
-        │      - pi.setSessionName("planner")
         │
         └─ state.activeRole updated
 ```

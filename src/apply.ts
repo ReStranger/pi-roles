@@ -18,6 +18,10 @@
  *     primitive that wraps `ctx.newSession()`, but the lifecycle (set
  *     pendingRoleAfterReset, wait for the next `session_start`) lives in
  *     the command handler in index.ts.
+ *   - Session naming. pi-roles never calls `pi.setSessionName` — session
+ *     names identify sessions in the selector and `/resume` listings, so
+ *     they belong to the user/Pi and are left untouched. The active role
+ *     is surfaced in the footer instead (`ctx.ui.setStatus`).
  */
 
 import type {
@@ -193,13 +197,6 @@ export function filterToolsForRuntime(
 }
 
 /**
- * Compose the session name from the role name.
- */
-export function composeSessionName(roleName: string): string {
-  return roleName;
-}
-
-/**
  * Compose the footer status string shown in the status bar.
  */
 export function composeFooterStatus(roleName: string): string {
@@ -225,11 +222,12 @@ export function composeFooterStatus(roleName: string): string {
  *      `setActiveTools`. We always overwrite; the `inherit` case skips
  *      this step entirely.
  *   4. Footer — `setStatus` so the role name shows in the status bar.
- *   5. Session name — `setSessionName` with the role name.
- *   6. Persist — `appendEntry` so `/reload` and `session_start` with
+ *   5. Persist — `appendEntry` so `/reload` and `session_start` with
  *      reason="reload"|"resume" can restore the active role.
- *   7. Notify — `sendMessage` with the role-notification customType
+ *   6. Notify — `sendMessage` with the role-notification customType
  *      unless `silent` is set (e.g. on initial session_start).
+ *
+ * The session name is deliberately NOT touched (see the module header).
  *
  * Warnings are accumulated and returned. Callers decide whether to surface
  * them as `ctx.ui.notify` toasts or fold them into the notification message.
@@ -298,10 +296,7 @@ export async function applyRole(
     ctx.ui.setStatus(STATUS_KEY, composeFooterStatus(role.name));
   }
 
-  // 5. Session name
-  pi.setSessionName(composeSessionName(role.name));
-
-  // 6. Persist
+  // 5. Persist
   const state: ActiveRoleState = {
     name: role.name,
     source: role.source,
@@ -310,7 +305,7 @@ export async function applyRole(
   };
   pi.appendEntry(ACTIVE_ROLE_ENTRY_TYPE, state);
 
-  // 7. Notify
+  // 6. Notify
   if (!options.silent) {
     const display =
       warnings.length === 0
